@@ -12,20 +12,20 @@ async function testFetch(label, url, opts = {}) {
 
 export async function GET() {
   const results = await Promise.all([
-    // Bybit (blocked on Vercel US — 403)
-    testFetch('bybit-tickers-filtered', 'https://api.bybit.com/v5/market/tickers?category=linear&symbol=BTCUSDT'),
-    testFetch('bybit-tickers-all',      'https://api.bybit.com/v5/market/tickers?category=linear'),
-    testFetch('bybit-funding-hist',     'https://api.bybit.com/v5/market/funding/history?category=linear&symbol=BTCUSDT&limit=5'),
-    // OKX
-    testFetch('okx-ticker',    'https://www.okx.com/api/v5/market/ticker?instId=BTC-USDT-SWAP'),
-    testFetch('okx-oi',        'https://www.okx.com/api/v5/public/open-interest?instType=SWAP&instId=BTC-USDT-SWAP'),
-    testFetch('okx-funding',   'https://www.okx.com/api/v5/public/funding-rate?instId=BTC-USDT-SWAP'),
-    testFetch('okx-fundhist',  'https://www.okx.com/api/v5/public/funding-rate-history?instId=BTC-USDT-SWAP&limit=5'),
-    // Binance retest
-    testFetch('binance-spot',  'https://api.binance.com/api/v3/ticker/24hr?symbol=BTCUSDT'),
-    testFetch('binance-fut',   'https://fapi.binance.com/fapi/v1/premiumIndex?symbol=BTCUSDT'),
-    // Coinglass (if they have public)
-    testFetch('coinglass-oi',  'https://open-api.coinglass.com/public/v2/open_interest?symbol=BTC'),
+    // OKX (works ✓)
+    testFetch('okx-funding-btc', 'https://www.okx.com/api/v5/public/funding-rate?instId=BTC-USDT-SWAP'),
+    // Deribit (we already use for volatility — should work)
+    testFetch('deribit-funding', 'https://www.deribit.com/api/v2/public/get_funding_rate_value?instrument_name=BTC-PERPETUAL&start_timestamp=0&end_timestamp=9999999999999'),
+    // BitMEX
+    testFetch('bitmex-funding', 'https://www.bitmex.com/api/v1/funding?symbol=XBTUSDT&count=1&reverse=true'),
+    // Hyperliquid (popular alternative)
+    testFetch('hyperliquid-meta', 'https://api.hyperliquid.xyz/info', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({type:'metaAndAssetCtxs'}) }),
+    // Kraken Futures
+    testFetch('kraken-tickers', 'https://futures.kraken.com/derivatives/api/v3/tickers'),
+    // Gate.io
+    testFetch('gate-funding',   'https://api.gateio.ws/api/v4/futures/usdt/funding_rate/BTC_USDT'),
+    // MEXC
+    testFetch('mexc-funding',   'https://contract.mexc.com/api/v1/contract/funding_rate/BTC_USDT'),
   ]);
 
   return Response.json(results);
