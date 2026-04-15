@@ -5,55 +5,56 @@ let cache = null;
 let cacheTs = 0;
 const TTL = 5 * 60 * 1000;
 
+// Exchange coverage from Vercel US:
+//   OKX ✓, MEXC ✓, BitMEX ✓ (BTC uses XBT)
+//   Binance, Bybit blocked. Kraken ✓ but their altcoin coverage is limited.
 const COINS = [
-  { symbol: 'BTC',  binance: 'BTCUSDT',  bybit: 'BTCUSDT',  okx: 'BTC-USDT-SWAP'  },
-  { symbol: 'ETH',  binance: 'ETHUSDT',  bybit: 'ETHUSDT',  okx: 'ETH-USDT-SWAP'  },
-  { symbol: 'SOL',  binance: 'SOLUSDT',  bybit: 'SOLUSDT',  okx: 'SOL-USDT-SWAP'  },
-  { symbol: 'BNB',  binance: 'BNBUSDT',  bybit: 'BNBUSDT',  okx: 'BNB-USDT-SWAP'  },
-  { symbol: 'XRP',  binance: 'XRPUSDT',  bybit: 'XRPUSDT',  okx: 'XRP-USDT-SWAP'  },
-  { symbol: 'DOGE', binance: 'DOGEUSDT', bybit: 'DOGEUSDT', okx: 'DOGE-USDT-SWAP' },
-  { symbol: 'AVAX', binance: 'AVAXUSDT', bybit: 'AVAXUSDT', okx: 'AVAX-USDT-SWAP' },
-  { symbol: 'LINK', binance: 'LINKUSDT', bybit: 'LINKUSDT', okx: 'LINK-USDT-SWAP' },
-  { symbol: 'ADA',  binance: 'ADAUSDT',  bybit: 'ADAUSDT',  okx: 'ADA-USDT-SWAP'  },
-  { symbol: 'SUI',  binance: 'SUIUSDT',  bybit: 'SUIUSDT',  okx: 'SUI-USDT-SWAP'  },
+  { symbol: 'BTC',  okx: 'BTC-USDT-SWAP',  mexc: 'BTC_USDT',  bitmex: 'XBTUSDT'  },
+  { symbol: 'ETH',  okx: 'ETH-USDT-SWAP',  mexc: 'ETH_USDT',  bitmex: 'ETHUSDT'  },
+  { symbol: 'SOL',  okx: 'SOL-USDT-SWAP',  mexc: 'SOL_USDT',  bitmex: 'SOLUSDT'  },
+  { symbol: 'BNB',  okx: 'BNB-USDT-SWAP',  mexc: 'BNB_USDT',  bitmex: null       },
+  { symbol: 'XRP',  okx: 'XRP-USDT-SWAP',  mexc: 'XRP_USDT',  bitmex: 'XRPUSDT'  },
+  { symbol: 'DOGE', okx: 'DOGE-USDT-SWAP', mexc: 'DOGE_USDT', bitmex: 'DOGEUSDT' },
+  { symbol: 'AVAX', okx: 'AVAX-USDT-SWAP', mexc: 'AVAX_USDT', bitmex: 'AVAXUSDT' },
+  { symbol: 'LINK', okx: 'LINK-USDT-SWAP', mexc: 'LINK_USDT', bitmex: 'LINKUSDT' },
+  { symbol: 'ADA',  okx: 'ADA-USDT-SWAP',  mexc: 'ADA_USDT',  bitmex: 'ADAUSDT'  },
+  { symbol: 'SUI',  okx: 'SUI-USDT-SWAP',  mexc: 'SUI_USDT',  bitmex: 'SUIUSDT'  },
 ];
 
 // Fresh timeout signal per call — module-level AbortSignal.timeout() starts
 // its timer at module load and would abort after 8s regardless of call time.
 const newSig = () => AbortSignal.timeout(8_000);
 
-async function fetchBinance() {
+// MEXC — one call per coin, returns current funding rate + next settle time
+async function fetchMEXC(mexcSym) {
+  if (!mexcSym) return null;
   try {
-    const res = await fetch('https://fapi.binance.com/fapi/v1/premiumIndex', { signal: newSig() });
-    if (!res.ok) return {};
+    const res = await fetch(`https://contract.mexc.com/api/v1/contract/funding_rate/${mexcSym}`, { signal: newSig() });
+    if (!res.ok) return null;
     const data = await res.json();
-    const out = {};
-    for (const item of data) {
-      out[item.symbol] = {
-        rate:          parseFloat(item.lastFundingRate),
-        nextFundingTs: item.nextFundingTime,
-      };
-    }
-    return out;
-  } catch { return {}; }
+    const d = data?.data;
+    if (!d?.fundingRate && d?.fundingRate !== 0) return null;
+    return {
+      rate:          parseFloat(d.fundingRate),
+      nextFundingTs: parseInt(d.nextSettleTime, 10) || null,
+    };
+  } catch { return null; }
 }
 
-async function fetchBybit() {
+// BitMEX — historical funding (latest entry). Note: BitMEX funding is 8-hourly.
+async function fetchBitMEX(bitmexSym) {
+  if (!bitmexSym) return null;
   try {
-    const res = await fetch('https://api.bybit.com/v5/market/tickers?category=linear', { signal: newSig() });
-    if (!res.ok) return {};
+    const res = await fetch(`https://www.bitmex.com/api/v1/funding?symbol=${bitmexSym}&count=1&reverse=true`, { signal: newSig() });
+    if (!res.ok) return null;
     const data = await res.json();
-    const out = {};
-    for (const item of data?.result?.list ?? []) {
-      if (item.fundingRate != null) {
-        out[item.symbol] = {
-          rate:          parseFloat(item.fundingRate),
-          nextFundingTs: parseInt(item.nextFundingTime, 10),
-        };
-      }
-    }
-    return out;
-  } catch { return {}; }
+    const d = data?.[0];
+    if (!d) return null;
+    return {
+      rate:          parseFloat(d.fundingRate),
+      nextFundingTs: null, // BitMEX doesn't return nextFundingTs in this endpoint
+    };
+  } catch { return null; }
 }
 
 async function fetchOKX(instId) {
@@ -139,40 +140,36 @@ export async function GET(request) {
     return Response.json(cache);
   }
 
-  // Fetch all three exchanges in parallel
-  const [binance, bybit, okxResults] = await Promise.all([
-    fetchBinance().catch(() => ({})),
-    fetchBybit().catch(() => ({})),
+  // Fetch all three exchanges in parallel (per-coin calls for OKX, MEXC, BitMEX)
+  const [okxResults, mexcResults, bitmexResults] = await Promise.all([
     Promise.all(COINS.map(c => fetchOKX(c.okx).catch(() => null))),
+    Promise.all(COINS.map(c => fetchMEXC(c.mexc).catch(() => null))),
+    Promise.all(COINS.map(c => fetchBitMEX(c.bitmex).catch(() => null))),
   ]);
 
-  const okx = {};
-  COINS.forEach((c, i) => { if (okxResults[i]) okx[c.okx] = okxResults[i]; });
-
   // Build per-coin rows
-  const coins = COINS.map(c => {
-    const b  = binance[c.binance] ?? null;
-    const by = bybit[c.bybit]    ?? null;
-    const o  = okx[c.okx]        ?? null;
+  const coins = COINS.map((c, i) => {
+    const o  = okxResults[i];
+    const m  = mexcResults[i];
+    const bm = bitmexResults[i];
 
-    const rates = [b?.rate, by?.rate, o?.rate].filter(r => r != null);
+    const rates = [o?.rate, m?.rate, bm?.rate].filter(r => r != null);
     const avg   = rates.length ? rates.reduce((a, b) => a + b, 0) / rates.length : null;
 
-    // Next funding time — use first available
-    const nextFundingTs = b?.nextFundingTs ?? by?.nextFundingTs ?? o?.nextFundingTs ?? null;
+    const nextFundingTs = o?.nextFundingTs ?? m?.nextFundingTs ?? bm?.nextFundingTs ?? null;
 
     return {
       symbol: c.symbol,
-      binance: b?.rate  ?? null,
-      bybit:   by?.rate ?? null,
       okx:     o?.rate  ?? null,
+      mexc:    m?.rate  ?? null,
+      bitmex:  bm?.rate ?? null,
       avg,
       nextFundingTs,
     };
   });
 
   // Overall market bias — avg of all available rates
-  const allRates  = coins.flatMap(c => [c.binance, c.bybit, c.okx]).filter(r => r != null);
+  const allRates  = coins.flatMap(c => [c.okx, c.mexc, c.bitmex]).filter(r => r != null);
   const marketAvg = allRates.length ? allRates.reduce((a, b) => a + b, 0) / allRates.length : 0;
 
   cache   = { coins, marketAvg, updatedAt: Date.now() };

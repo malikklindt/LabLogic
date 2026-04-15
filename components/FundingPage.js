@@ -146,7 +146,7 @@ function HistoryModal({ coin, onClose }) {
           <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'16px 20px', borderBottom:'1px solid var(--border)' }}>
             <div>
               <div style={{ fontSize:16, fontWeight:800, color:'var(--text2)', letterSpacing:-0.4 }}>{coin.symbol} Funding History</div>
-              <div style={{ fontSize:11, color:'var(--muted3)', marginTop:2 }}>Last 90 events · Binance perpetuals</div>
+              <div style={{ fontSize:11, color:'var(--muted3)', marginTop:2 }}>Last 90 events · OKX perpetuals</div>
             </div>
             <button onClick={close} style={{ width:28, height:28, borderRadius:7, background:'var(--card-hover)', border:'1px solid var(--border)', color:'var(--muted3)', fontSize:17, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center' }}>×</button>
           </div>
@@ -247,7 +247,7 @@ function LiquidationZones() {
       <div style={{ padding:'12px 18px', borderBottom:'1px solid var(--border)', display:'flex', alignItems:'center', justifyContent:'space-between', flexWrap:'wrap', gap:10 }}>
         <div>
           <div style={{ fontSize:14, fontWeight:800, color:'var(--text2)', letterSpacing:-0.3 }}>Liquidation Zones</div>
-          <div style={{ fontSize:11, color:'var(--muted3)', marginTop:1 }}>Estimated from open interest &amp; leverage distribution · Binance</div>
+          <div style={{ fontSize:11, color:'var(--muted3)', marginTop:1 }}>Estimated from open interest &amp; leverage distribution · OKX</div>
         </div>
         {data?.coins && (
           <div style={{ display:'flex', gap:4 }}>
@@ -320,7 +320,7 @@ function LiquidationZones() {
 
           {/* Footer note */}
           <div style={{ padding:'10px 18px', borderTop:'1px solid var(--border)', fontSize:10, color:'var(--muted4)', lineHeight:1.6 }}>
-            Estimates based on Binance open interest &amp; global long/short account ratios. Actual liquidation prices vary by entry, leverage, and exchange. Use as a guide, not as precise levels.
+            Estimates based on OKX open interest &amp; typical leverage distribution. Actual liquidation prices vary by entry, leverage, and exchange. Use as a guide, not as precise levels.
           </div>
         </>
       )}
@@ -359,9 +359,9 @@ export default function FundingPage() {
     : 50;
 
   const EXCHANGES = [
-    { key:'binance', label:'Binance' },
-    { key:'bybit',   label:'Bybit'   },
     { key:'okx',     label:'OKX'     },
+    { key:'mexc',    label:'MEXC'    },
+    { key:'bitmex',  label:'BitMEX'  },
   ];
 
   return (
@@ -371,7 +371,7 @@ export default function FundingPage() {
       <div style={{ borderBottom:'1px solid var(--border)', padding:'12px 28px', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
         <div>
           <div style={{ fontSize:18, fontWeight:800, letterSpacing:-0.5 }}>Funding Rates</div>
-          <div style={{ fontSize:11, color:'var(--muted3)', marginTop:1 }}>Perpetual futures · Binance · Bybit · OKX · updates every 8h</div>
+          <div style={{ fontSize:11, color:'var(--muted3)', marginTop:1 }}>Perpetual futures · OKX · MEXC · BitMEX · updates every 8h</div>
         </div>
         <div style={{ display:'flex', alignItems:'center', gap:12 }}>
           {nextTs && (
@@ -440,7 +440,7 @@ export default function FundingPage() {
         <div>
         {loading && (
           <div style={{ textAlign:'center', padding:'40px 0', color:'var(--muted3)', fontSize:13 }}>
-            Fetching rates from Binance, Bybit, OKX…
+            Fetching rates from OKX, MEXC, BitMEX…
           </div>
         )}
 

@@ -42,3 +42,4 @@ Thumbs.db
 # Large files
 *.html
 index.html
+.claude/
