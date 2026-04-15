@@ -14,14 +14,39 @@ let cachedDomAt = 0;
 const TTL_DOM   = 5 * 60_000; // 5 min
 
 async function fetchBinanceTicker(symbol) {
-  const res = await fetch(
-    `https://api.binance.com/api/v3/ticker/24hr?symbol=${symbol}`,
-    { cache: 'no-store', signal: AbortSignal.timeout(7000) }
-  );
-  if (!res.ok) return null;
-  const data = await res.json();
-  if (!data?.lastPrice) return null;
-  return data;
+  try {
+    const res = await fetch(
+      `https://api.binance.com/api/v3/ticker/24hr?symbol=${symbol}`,
+      { cache: 'no-store', signal: AbortSignal.timeout(7000) }
+    );
+    if (!res.ok) return null;
+    const data = await res.json();
+    if (!data?.lastPrice) return null;
+    return data;
+  } catch { return null; }
+}
+
+// CoinGecko fallback — used when Binance blocks our region (Vercel US)
+async function fetchGeckoPrices() {
+  try {
+    const res = await fetch(
+      'https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,solana&vs_currencies=usd&include_24hr_change=true&include_7d_change=true',
+      { cache: 'no-store', signal: AbortSignal.timeout(8000) }
+    );
+    if (!res.ok) return null;
+    const d = await res.json();
+    if (!d?.bitcoin?.usd) return null;
+    const convert = (key) => d[key] ? {
+      lastPrice: String(d[key].usd),
+      priceChangePercent: String(d[key].usd_24h_change ?? 0),
+      _7d: d[key].usd_7d_change ?? null,
+    } : null;
+    return {
+      BTCUSDT: convert('bitcoin'),
+      ETHUSDT: convert('ethereum'),
+      SOLUSDT: convert('solana'),
+    };
+  } catch { return null; }
 }
 
 async function fetchBinance7dChange(symbol) {
@@ -75,7 +100,7 @@ export async function GET() {
   }
 
   try {
-    const [btcT, ethT, solT, btc7d, eth7d, sol7d, btcDom] = await Promise.all([
+    let [btcT, ethT, solT, btc7d, eth7d, sol7d, btcDom] = await Promise.all([
       fetchBinanceTicker('BTCUSDT'),
       fetchBinanceTicker('ETHUSDT'),
       fetchBinanceTicker('SOLUSDT'),
@@ -85,7 +110,18 @@ export async function GET() {
       fetchBtcDominance(),
     ]);
 
-    if (!btcT) throw new Error('BTC ticker unavailable');
+    // If Binance is blocked (e.g. Vercel US region), fall back to CoinGecko
+    if (!btcT) {
+      const gecko = await fetchGeckoPrices();
+      if (gecko) {
+        btcT = gecko.BTCUSDT; ethT = gecko.ETHUSDT; solT = gecko.SOLUSDT;
+        btc7d = gecko.BTCUSDT?._7d ?? btc7d;
+        eth7d = gecko.ETHUSDT?._7d ?? eth7d;
+        sol7d = gecko.SOLUSDT?._7d ?? sol7d;
+      }
+    }
+
+    if (!btcT) throw new Error('BTC ticker unavailable (both Binance and CoinGecko failed)');
 
     const payload = {
       bitcoin: {
