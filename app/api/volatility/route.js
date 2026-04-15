@@ -61,28 +61,29 @@ export async function GET() {
     dvolHistorical = (data?.result?.data ?? []).map(d => d[4]);
   } catch (_) {}
 
-  // RV from daily BTC candles — try Binance, fall back to CoinGecko
+  // RV from daily BTC candles — CoinGecko first (Binance blocked on Vercel US)
   async function fetchCandles(days) {
-    // Binance first
-    try {
-      const res = await fetch(
-        `https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1d&limit=${days + 1}`,
-        { cache: 'no-store', signal: AbortSignal.timeout(7000) }
-      );
-      if (res.ok) {
-        const data = await res.json();
-        if (Array.isArray(data) && data.length) return data.map(c => parseFloat(c[4]));
-      }
-    } catch {}
-    // CoinGecko fallback
     try {
       const res = await fetch(
         `https://api.coingecko.com/api/v3/coins/bitcoin/market_chart?vs_currency=usd&days=${days}&interval=daily`,
         { cache: 'no-store', signal: AbortSignal.timeout(8000) }
       );
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data?.prices) && data.prices.length) {
+          return data.prices.map(p => p[1]);
+        }
+      }
+    } catch {}
+    // Binance fallback
+    try {
+      const res = await fetch(
+        `https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1d&limit=${days + 1}`,
+        { cache: 'no-store', signal: AbortSignal.timeout(7000) }
+      );
       if (!res.ok) return [];
       const data = await res.json();
-      return Array.isArray(data?.prices) ? data.prices.map(p => p[1]) : [];
+      return Array.isArray(data) ? data.map(c => parseFloat(c[4])) : [];
     } catch { return []; }
   }
 

@@ -70,8 +70,9 @@ async function fetchFromBybit(bybit) {
 }
 
 async function fetchCoinData({ symbol, binance, bybit }) {
-  let data = await fetchFromBinance(binance);
-  if (!data) data = await fetchFromBybit(bybit);
+  // Bybit first — works reliably from Vercel US (Binance Futures blocked in US)
+  let data = await fetchFromBybit(bybit);
+  if (!data) data = await fetchFromBinance(binance);
   if (!data) return null;
 
   const { price, oiCoins, longPct, shortPct } = data;
