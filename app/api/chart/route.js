@@ -117,15 +117,36 @@ export async function GET(request) {
     : Math.min(days + 1, 1000);
 
   try {
-    const res = await fetch(
-      `https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=${binanceInterval}&limit=${limit}`,
-      { cache: 'no-store' }
-    );
-    if (!res.ok) throw new Error(`Binance klines HTTP ${res.status}`);
-    const klines = await res.json();
-    if (!Array.isArray(klines)) throw new Error('Binance klines: unexpected response');
+    let prices = null;
 
-    const prices  = klines.map(c => [c[0], parseFloat(c[4])]);
+    // Try Binance first
+    try {
+      const res = await fetch(
+        `https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=${binanceInterval}&limit=${limit}`,
+        { cache: 'no-store', signal: AbortSignal.timeout(7000) }
+      );
+      if (res.ok) {
+        const klines = await res.json();
+        if (Array.isArray(klines) && klines.length) {
+          prices = klines.map(c => [c[0], parseFloat(c[4])]);
+        }
+      }
+    } catch (_) { /* fall through to CoinGecko */ }
+
+    // Fall back to CoinGecko if Binance blocked (Vercel US regions)
+    if (!prices || !prices.length) {
+      const res = await fetch(
+        `https://api.coingecko.com/api/v3/coins/${coin}/market_chart?vs_currency=usd&days=${days}&interval=daily`,
+        { cache: 'no-store', signal: AbortSignal.timeout(8000) }
+      );
+      if (!res.ok) throw new Error(`Both Binance and CoinGecko failed (CG: ${res.status})`);
+      const data = await res.json();
+      if (!Array.isArray(data?.prices)) throw new Error('CoinGecko: unexpected shape');
+      prices = data.prices; // already in [[ts, price], ...] format
+    }
+
+    if (!prices || !prices.length) throw new Error('No price data returned');
+
     const payload = { prices };
     cache[cacheKey] = { data: payload, at: Date.now() };
     return Response.json(payload);

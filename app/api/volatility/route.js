@@ -61,29 +61,35 @@ export async function GET() {
     dvolHistorical = (data?.result?.data ?? []).map(d => d[4]);
   } catch (_) {}
 
-  // RV from daily Binance candles (no auth, no rate limits)
+  // RV from daily BTC candles — try Binance, fall back to CoinGecko
+  async function fetchCandles(days) {
+    // Binance first
+    try {
+      const res = await fetch(
+        `https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1d&limit=${days + 1}`,
+        { cache: 'no-store', signal: AbortSignal.timeout(7000) }
+      );
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data) && data.length) return data.map(c => parseFloat(c[4]));
+      }
+    } catch {}
+    // CoinGecko fallback
+    try {
+      const res = await fetch(
+        `https://api.coingecko.com/api/v3/coins/bitcoin/market_chart?vs_currency=usd&days=${days}&interval=daily`,
+        { cache: 'no-store', signal: AbortSignal.timeout(8000) }
+      );
+      if (!res.ok) return [];
+      const data = await res.json();
+      return Array.isArray(data?.prices) ? data.prices.map(p => p[1]) : [];
+    } catch { return []; }
+  }
+
   let rv = null;
-  let btcPrices30 = [];
-  let btcPrices90 = [];
-
-  try {
-    const res = await fetch(
-      'https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1d&limit=31',
-      { cache: 'no-store' }
-    );
-    const data = await res.json();
-    btcPrices30 = data.map(c => parseFloat(c[4])); // close price
-    if (btcPrices30.length > 1) rv = parseFloat(calcRV(btcPrices30).toFixed(1));
-  } catch (_) {}
-
-  try {
-    const res = await fetch(
-      'https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1d&limit=91',
-      { cache: 'no-store' }
-    );
-    const data = await res.json();
-    btcPrices90 = data.map(c => parseFloat(c[4]));
-  } catch (_) {}
+  const btcPrices30 = await fetchCandles(30);
+  if (btcPrices30.length > 1) rv = parseFloat(calcRV(btcPrices30).toFixed(1));
+  const btcPrices90 = await fetchCandles(90);
 
   const volHistory = {
     '1W': { iv: ivSpark(dvolHistorical, ivLive, 7),  rv: rvSpark(btcPrices30.slice(-8)) },

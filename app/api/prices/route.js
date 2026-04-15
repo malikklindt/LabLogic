@@ -30,7 +30,7 @@ async function fetchBinanceTicker(symbol) {
 async function fetchGeckoPrices() {
   try {
     const res = await fetch(
-      'https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,solana&vs_currencies=usd&include_24hr_change=true&include_7d_change=true',
+      'https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,solana&vs_currencies=usd&include_24hr_change=true',
       { cache: 'no-store', signal: AbortSignal.timeout(8000) }
     );
     if (!res.ok) return null;
@@ -39,13 +39,30 @@ async function fetchGeckoPrices() {
     const convert = (key) => d[key] ? {
       lastPrice: String(d[key].usd),
       priceChangePercent: String(d[key].usd_24h_change ?? 0),
-      _7d: d[key].usd_7d_change ?? null,
     } : null;
     return {
       BTCUSDT: convert('bitcoin'),
       ETHUSDT: convert('ethereum'),
       SOLUSDT: convert('solana'),
     };
+  } catch { return null; }
+}
+
+// Compute 7d change from CoinGecko market_chart (used when Binance klines blocked)
+async function fetchGecko7dChange(id) {
+  try {
+    const res = await fetch(
+      `https://api.coingecko.com/api/v3/coins/${id}/market_chart?vs_currency=usd&days=7&interval=daily`,
+      { cache: 'no-store', signal: AbortSignal.timeout(8000) }
+    );
+    if (!res.ok) return null;
+    const d = await res.json();
+    const prices = d?.prices;
+    if (!Array.isArray(prices) || prices.length < 2) return null;
+    const start = prices[0][1];
+    const end   = prices[prices.length - 1][1];
+    if (!start || !end) return null;
+    return parseFloat(((end - start) / start * 100).toFixed(2));
   } catch { return null; }
 }
 
@@ -115,10 +132,16 @@ export async function GET() {
       const gecko = await fetchGeckoPrices();
       if (gecko) {
         btcT = gecko.BTCUSDT; ethT = gecko.ETHUSDT; solT = gecko.SOLUSDT;
-        btc7d = gecko.BTCUSDT?._7d ?? btc7d;
-        eth7d = gecko.ETHUSDT?._7d ?? eth7d;
-        sol7d = gecko.SOLUSDT?._7d ?? sol7d;
       }
+    }
+    // 7d change: if Binance klines blocked, compute from CoinGecko market_chart
+    if (btc7d == null || eth7d == null || sol7d == null) {
+      const [b7, e7, s7] = await Promise.all([
+        btc7d == null ? fetchGecko7dChange('bitcoin')  : Promise.resolve(btc7d),
+        eth7d == null ? fetchGecko7dChange('ethereum') : Promise.resolve(eth7d),
+        sol7d == null ? fetchGecko7dChange('solana')   : Promise.resolve(sol7d),
+      ]);
+      btc7d = b7; eth7d = e7; sol7d = s7;
     }
 
     if (!btcT) throw new Error('BTC ticker unavailable (both Binance and CoinGecko failed)');

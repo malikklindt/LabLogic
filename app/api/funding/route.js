@@ -63,16 +63,33 @@ async function fetchOKX(instId) {
 }
 
 async function fetchHistorical(symbol) {
-  // Binance last 90 funding events (~30 days)
+  // Try Binance first (may be blocked on Vercel US)
   try {
     const res = await fetch(
       `https://fapi.binance.com/fapi/v1/fundingRate?symbol=${symbol}&limit=90`,
       { signal: AbortSignal.timeout(6_000) }
     );
+    if (res.ok) {
+      const data = await res.json();
+      if (Array.isArray(data) && data.length) {
+        return data.map(d => ({ ts: d.fundingTime, rate: parseFloat(d.fundingRate) }));
+      }
+    }
+  } catch {}
+
+  // Fallback: Bybit funding history
+  try {
+    const res = await fetch(
+      `https://api.bybit.com/v5/market/funding/history?category=linear&symbol=${symbol}&limit=90`,
+      { signal: AbortSignal.timeout(6_000) }
+    );
     if (!res.ok) return [];
     const data = await res.json();
-    return data.map(d => ({
-      ts:   d.fundingTime,
+    const list = data?.result?.list;
+    if (!Array.isArray(list)) return [];
+    // Bybit returns newest first — reverse to chronological
+    return list.reverse().map(d => ({
+      ts:   parseInt(d.fundingRateTimestamp, 10),
       rate: parseFloat(d.fundingRate),
     }));
   } catch { return []; }

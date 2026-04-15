@@ -79,24 +79,45 @@ function msToDate(ms) {
 
 // ── Fetchers ──────────────────────────────────────────────────────────────────
 
-// Binance — reliable, no auth, 24/7 BTC data
-// Returns klines (OHLCV); index 0 = open time (ms), index 4 = close price
+// BTC daily closes — Binance preferred, CoinGecko fallback for blocked regions
 async function fetchBTC(days = 200) {
-  const limit = Math.min(days, 1000); // Binance max per request
-  const res = await fetch(
-    `https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1d&limit=${limit}`,
-    { cache: 'no-store' }
-  );
-  if (!res.ok) throw new Error(`Binance HTTP ${res.status}`);
-  const data = await res.json();
-  if (!Array.isArray(data) || data.length < 10) throw new Error(`Binance: insufficient rows (${data?.length ?? 0})`);
+  // Try Binance first
+  try {
+    const limit = Math.min(days, 1000);
+    const res = await fetch(
+      `https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1d&limit=${limit}`,
+      { cache: 'no-store', signal: AbortSignal.timeout(7000) }
+    );
+    if (res.ok) {
+      const data = await res.json();
+      if (Array.isArray(data) && data.length >= 10) {
+        const byDate = {};
+        for (const candle of data) {
+          const close = parseFloat(candle[4]);
+          if (!isFinite(close) || close <= 0) continue;
+          byDate[msToDate(candle[0])] = close;
+        }
+        return Object.entries(byDate)
+          .sort(([a], [b]) => a < b ? -1 : 1)
+          .map(([date, close]) => ({ date, close }));
+      }
+    }
+  } catch {}
 
-  // Deduplicate by UTC date — keep last close per day
+  // CoinGecko fallback (capped at 365 days on free tier)
+  const cgDays = Math.min(days, 365);
+  const res = await fetch(
+    `https://api.coingecko.com/api/v3/coins/bitcoin/market_chart?vs_currency=usd&days=${cgDays}&interval=daily`,
+    { cache: 'no-store', signal: AbortSignal.timeout(8000) }
+  );
+  if (!res.ok) throw new Error(`CoinGecko BTC HTTP ${res.status}`);
+  const data = await res.json();
+  if (!Array.isArray(data?.prices) || data.prices.length < 10) throw new Error(`CoinGecko BTC: insufficient rows`);
+
   const byDate = {};
-  for (const candle of data) {
-    const close = parseFloat(candle[4]);
+  for (const [ts, close] of data.prices) {
     if (!isFinite(close) || close <= 0) continue;
-    byDate[msToDate(candle[0])] = close;
+    byDate[msToDate(ts)] = close;
   }
   return Object.entries(byDate)
     .sort(([a], [b]) => a < b ? -1 : 1)
@@ -127,23 +148,45 @@ async function fetchFRED(seriesId) {
   return rows;
 }
 
-// Binance PAXG — tokenized gold (1 PAXG = 1 troy oz of physical gold).
-// Tracks spot gold price closely. No auth, no rate limits.
+// Gold daily closes — Binance PAXG preferred, CoinGecko pax-gold fallback
 async function fetchGold(days = 600) {
-  const limit = Math.min(days, 1000);
+  // Try Binance PAXG
+  try {
+    const limit = Math.min(days, 1000);
+    const res = await fetch(
+      `https://api.binance.com/api/v3/klines?symbol=PAXGUSDT&interval=1d&limit=${limit}`,
+      { cache: 'no-store', signal: AbortSignal.timeout(7000) }
+    );
+    if (res.ok) {
+      const data = await res.json();
+      if (Array.isArray(data) && data.length >= 10) {
+        const byDate = {};
+        for (const candle of data) {
+          const close = parseFloat(candle[4]);
+          if (!isFinite(close) || close <= 0) continue;
+          byDate[msToDate(candle[0])] = close;
+        }
+        return Object.entries(byDate)
+          .sort(([a], [b]) => a < b ? -1 : 1)
+          .map(([date, close]) => ({ date, close }));
+      }
+    }
+  } catch {}
+
+  // CoinGecko fallback (pax-gold tracks spot gold)
+  const cgDays = Math.min(days, 365);
   const res = await fetch(
-    `https://api.binance.com/api/v3/klines?symbol=PAXGUSDT&interval=1d&limit=${limit}`,
-    { cache: 'no-store' }
+    `https://api.coingecko.com/api/v3/coins/pax-gold/market_chart?vs_currency=usd&days=${cgDays}&interval=daily`,
+    { cache: 'no-store', signal: AbortSignal.timeout(8000) }
   );
-  if (!res.ok) throw new Error(`Binance PAXG HTTP ${res.status}`);
+  if (!res.ok) throw new Error(`CoinGecko gold HTTP ${res.status}`);
   const data = await res.json();
-  if (!Array.isArray(data) || data.length < 10) throw new Error(`Binance PAXG: insufficient rows (${data?.length ?? 0})`);
+  if (!Array.isArray(data?.prices) || data.prices.length < 10) throw new Error(`CoinGecko gold: insufficient rows`);
 
   const byDate = {};
-  for (const candle of data) {
-    const close = parseFloat(candle[4]);
+  for (const [ts, close] of data.prices) {
     if (!isFinite(close) || close <= 0) continue;
-    byDate[msToDate(candle[0])] = close;
+    byDate[msToDate(ts)] = close;
   }
   return Object.entries(byDate)
     .sort(([a], [b]) => a < b ? -1 : 1)
