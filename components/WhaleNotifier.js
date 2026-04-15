@@ -1,6 +1,6 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import { getSettings } from '@/lib/settings';
 
 const SEEN_KEY  = 'll_whale_seen';
@@ -209,8 +209,16 @@ export default function WhaleNotifier() {
   const [toasts, setToasts]  = useState([]);
   const seenRef              = useRef(null);
   const initializedRef       = useRef(false);
+  const pathname             = usePathname();
+
+  // Don't show whale alerts on the landing/login page or before user is authed.
+  // Alerts should only appear once users are inside the software.
+  const authed = typeof window !== 'undefined' && localStorage.getItem('ll_auth') === '1';
+  const onPublicPage = pathname === '/login';
 
   useEffect(() => {
+    if (!authed || onPublicPage) return; // no polling, no alerts
+
     try {
       const stored = JSON.parse(localStorage.getItem(SEEN_KEY) || '[]');
       seenRef.current = new Set(stored);
@@ -270,10 +278,12 @@ export default function WhaleNotifier() {
     poll();
     const interval = setInterval(poll, 60_000);
     return () => clearInterval(interval);
-  }, []);
+  }, [authed, onPublicPage]);
 
   const dismiss = (tid) => setToasts(prev => prev.filter(t => t._tid !== tid));
 
+  // Don't render anything on public pages or pre-auth
+  if (!authed || onPublicPage) return null;
   if (toasts.length === 0) return null;
 
   return (
