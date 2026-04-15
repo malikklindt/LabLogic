@@ -18,48 +18,56 @@ const COINS = [
   { symbol: 'SUI',  binance: 'SUIUSDT',  bybit: 'SUIUSDT',  okx: 'SUI-USDT-SWAP'  },
 ];
 
-const sig = AbortSignal.timeout(8_000);
+// Fresh timeout signal per call — module-level AbortSignal.timeout() starts
+// its timer at module load and would abort after 8s regardless of call time.
+const newSig = () => AbortSignal.timeout(8_000);
 
 async function fetchBinance() {
-  const res = await fetch('https://fapi.binance.com/fapi/v1/premiumIndex', { signal: sig });
-  if (!res.ok) return {};
-  const data = await res.json();
-  const out = {};
-  for (const item of data) {
-    out[item.symbol] = {
-      rate:          parseFloat(item.lastFundingRate),
-      nextFundingTs: item.nextFundingTime,
-    };
-  }
-  return out;
+  try {
+    const res = await fetch('https://fapi.binance.com/fapi/v1/premiumIndex', { signal: newSig() });
+    if (!res.ok) return {};
+    const data = await res.json();
+    const out = {};
+    for (const item of data) {
+      out[item.symbol] = {
+        rate:          parseFloat(item.lastFundingRate),
+        nextFundingTs: item.nextFundingTime,
+      };
+    }
+    return out;
+  } catch { return {}; }
 }
 
 async function fetchBybit() {
-  const res = await fetch('https://api.bybit.com/v5/market/tickers?category=linear', { signal: sig });
-  if (!res.ok) return {};
-  const data = await res.json();
-  const out = {};
-  for (const item of data?.result?.list ?? []) {
-    if (item.fundingRate != null) {
-      out[item.symbol] = {
-        rate:          parseFloat(item.fundingRate),
-        nextFundingTs: parseInt(item.nextFundingTime, 10),
-      };
+  try {
+    const res = await fetch('https://api.bybit.com/v5/market/tickers?category=linear', { signal: newSig() });
+    if (!res.ok) return {};
+    const data = await res.json();
+    const out = {};
+    for (const item of data?.result?.list ?? []) {
+      if (item.fundingRate != null) {
+        out[item.symbol] = {
+          rate:          parseFloat(item.fundingRate),
+          nextFundingTs: parseInt(item.nextFundingTime, 10),
+        };
+      }
     }
-  }
-  return out;
+    return out;
+  } catch { return {}; }
 }
 
 async function fetchOKX(instId) {
-  const res = await fetch(`https://www.okx.com/api/v5/public/funding-rate?instId=${instId}`, { signal: sig });
-  if (!res.ok) return null;
-  const data = await res.json();
-  const item = data?.data?.[0];
-  if (!item) return null;
-  return {
-    rate:          parseFloat(item.fundingRate),
-    nextFundingTs: parseInt(item.nextFundingTime, 10),
-  };
+  try {
+    const res = await fetch(`https://www.okx.com/api/v5/public/funding-rate?instId=${instId}`, { signal: newSig() });
+    if (!res.ok) return null;
+    const data = await res.json();
+    const item = data?.data?.[0];
+    if (!item) return null;
+    return {
+      rate:          parseFloat(item.fundingRate),
+      nextFundingTs: parseInt(item.nextFundingTime, 10),
+    };
+  } catch { return null; }
 }
 
 async function fetchHistorical(symbol) {

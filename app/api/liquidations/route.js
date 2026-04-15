@@ -111,6 +111,9 @@ export async function GET() {
     .map(r => r.value);
 
   const data = { coins, ts: Date.now() };
-  cache = data; cacheTs = Date.now();
+  // Only cache successful responses — don't hold empty results for 5 minutes
+  if (coins.length > 0) {
+    cache = data; cacheTs = Date.now();
+  }
   return Response.json(data);
 }
