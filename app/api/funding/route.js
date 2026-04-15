@@ -71,17 +71,38 @@ async function fetchOKX(instId) {
 }
 
 async function fetchHistorical(symbol) {
-  // Bybit first — works reliably from Vercel US (Binance blocked in US)
+  // OKX first — only exchange reliably reachable from Vercel US
+  // Map Binance-style symbol (BTCUSDT) to OKX instId (BTC-USDT-SWAP)
+  const base = symbol.replace(/USDT$/, '');
+  const okxInstId = `${base}-USDT-SWAP`;
+  try {
+    const res = await fetch(
+      `https://www.okx.com/api/v5/public/funding-rate-history?instId=${okxInstId}&limit=90`,
+      { signal: AbortSignal.timeout(8_000) }
+    );
+    if (res.ok) {
+      const data = await res.json();
+      const list = data?.data;
+      if (Array.isArray(list) && list.length) {
+        // OKX returns newest first — reverse to chronological
+        return list.reverse().map(d => ({
+          ts:   parseInt(d.fundingTime, 10),
+          rate: parseFloat(d.fundingRate),
+        }));
+      }
+    }
+  } catch {}
+
+  // Fallback: Bybit (blocked on Vercel US but try anyway)
   try {
     const res = await fetch(
       `https://api.bybit.com/v5/market/funding/history?category=linear&symbol=${symbol}&limit=90`,
-      { signal: AbortSignal.timeout(8_000) }
+      { signal: AbortSignal.timeout(6_000) }
     );
     if (res.ok) {
       const data = await res.json();
       const list = data?.result?.list;
       if (Array.isArray(list) && list.length) {
-        // Bybit returns newest first — reverse to chronological
         return list.reverse().map(d => ({
           ts:   parseInt(d.fundingRateTimestamp, 10),
           rate: parseFloat(d.fundingRate),
@@ -90,7 +111,7 @@ async function fetchHistorical(symbol) {
     }
   } catch {}
 
-  // Fallback: Binance (may work from non-US regions)
+  // Final fallback: Binance
   try {
     const res = await fetch(
       `https://fapi.binance.com/fapi/v1/fundingRate?symbol=${symbol}&limit=90`,

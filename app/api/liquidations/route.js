@@ -1,11 +1,11 @@
 export const dynamic = 'force-dynamic';
 
 const COINS = [
-  { symbol: 'BTC', binance: 'BTCUSDT', bybit: 'BTCUSDT' },
-  { symbol: 'ETH', binance: 'ETHUSDT', bybit: 'ETHUSDT' },
-  { symbol: 'SOL', binance: 'SOLUSDT', bybit: 'SOLUSDT' },
-  { symbol: 'BNB', binance: 'BNBUSDT', bybit: 'BNBUSDT' },
-  { symbol: 'XRP', binance: 'XRPUSDT', bybit: 'XRPUSDT' },
+  { symbol: 'BTC', binance: 'BTCUSDT', bybit: 'BTCUSDT', okx: 'BTC-USDT-SWAP' },
+  { symbol: 'ETH', binance: 'ETHUSDT', bybit: 'ETHUSDT', okx: 'ETH-USDT-SWAP' },
+  { symbol: 'SOL', binance: 'SOLUSDT', bybit: 'SOLUSDT', okx: 'SOL-USDT-SWAP' },
+  { symbol: 'BNB', binance: 'BNBUSDT', bybit: 'BNBUSDT', okx: 'BNB-USDT-SWAP' },
+  { symbol: 'XRP', binance: 'XRPUSDT', bybit: 'XRPUSDT', okx: 'XRP-USDT-SWAP' },
 ];
 
 // Realistic leverage distribution based on exchange research
@@ -69,9 +69,28 @@ async function fetchFromBybit(bybit) {
   } catch { return null; }
 }
 
-async function fetchCoinData({ symbol, binance, bybit }) {
-  // Bybit first — works reliably from Vercel US (Binance Futures blocked in US)
-  let data = await fetchFromBybit(bybit);
+async function fetchFromOKX(okx) {
+  try {
+    const [tickerR, oiR] = await Promise.allSettled([
+      fetch(`https://www.okx.com/api/v5/market/ticker?instId=${okx}`, { cache: 'no-store', signal: AbortSignal.timeout(6000) }),
+      fetch(`https://www.okx.com/api/v5/public/open-interest?instType=SWAP&instId=${okx}`, { cache: 'no-store', signal: AbortSignal.timeout(6000) }),
+    ]);
+    if (tickerR.status !== 'fulfilled' || oiR.status !== 'fulfilled') return null;
+    if (!tickerR.value.ok || !oiR.value.ok) return null;
+    const tickerJson = await tickerR.value.json();
+    const oiJson     = await oiR.value.json();
+    const price   = parseFloat(tickerJson?.data?.[0]?.last);
+    const oiCcy   = parseFloat(oiJson?.data?.[0]?.oiCcy); // OI in base currency (coins)
+    if (!price || !oiCcy) return null;
+    // OKX doesn't expose long/short account ratio publicly — use neutral default
+    return { price, oiCoins: oiCcy, longPct: 0.52, shortPct: 0.48 };
+  } catch { return null; }
+}
+
+async function fetchCoinData({ symbol, binance, bybit, okx }) {
+  // OKX first — works from Vercel US (Binance 451, Bybit 403 Cloudfront)
+  let data = await fetchFromOKX(okx);
+  if (!data) data = await fetchFromBybit(bybit);
   if (!data) data = await fetchFromBinance(binance);
   if (!data) return null;
 
