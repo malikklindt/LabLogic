@@ -103,16 +103,32 @@ async function fetchCoinData({ symbol, binance, bybit }) {
   return { symbol, price, oiUsd, longPct, shortPct, levels };
 }
 
-export async function GET() {
-  if (cache && Date.now() - cacheTs < TTL) return Response.json(cache);
+export async function GET(request) {
+  const { searchParams } = new URL(request.url);
+  const debug = searchParams.get('debug');
+
+  if (cache && Date.now() - cacheTs < TTL && !debug) return Response.json(cache);
 
   const results = await Promise.allSettled(COINS.map(fetchCoinData));
   const coins   = results
     .filter(r => r.status === 'fulfilled' && r.value)
     .map(r => r.value);
 
+  // Debug mode: show what each coin's fetchCoinData returned
+  if (debug) {
+    const diag = [];
+    for (let i = 0; i < COINS.length; i++) {
+      const r = results[i];
+      diag.push({
+        symbol: COINS[i].symbol,
+        status: r.status,
+        value:  r.status === 'fulfilled' ? (r.value ? 'ok' : 'null') : `rejected: ${r.reason?.message}`,
+      });
+    }
+    return Response.json({ coins, diag });
+  }
+
   const data = { coins, ts: Date.now() };
-  // Only cache successful responses — don't hold empty results for 5 minutes
   if (coins.length > 0) {
     cache = data; cacheTs = Date.now();
   }
