@@ -1182,7 +1182,25 @@ function Slide4() {
 export default function LandingPage() {
   const [slide, setSlide] = useState(0);
   const [animKey, setAnimKey] = useState(0);
+  const [authChecked, setAuthChecked] = useState(false);
+  const router = useRouter();
   const TOTAL = 5;
+
+  // If user is already authenticated, skip landing and go straight to dashboard.
+  // They only see the landing flow on first visit (or after subscription expires).
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (localStorage.getItem('ll_auth') === '1') {
+      router.replace('/');
+    } else {
+      setAuthChecked(true);
+    }
+  }, [router]);
+
+  // Don't render the landing flash while we check auth
+  if (!authChecked) {
+    return <div style={{ background: T.bg, width:'100vw', height:'100vh', position:'fixed', inset:0 }} suppressHydrationWarning />;
+  }
 
   const goTo = (n) => {
     setSlide(n);
