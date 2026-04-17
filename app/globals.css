@@ -1164,6 +1164,9 @@ button.ai-badge:active { transform: scale(0.97) !important; }
   .hdr-name { font-size: 18px; }
   .hdr-date { font-size: 12px; }
 
+  /* Volatility card — stack IV and RV vertically */
+  .vol-wrap { flex-direction: column !important; }
+
   /* Funding page */
   .funding-two-col { grid-template-columns: 1fr !important; }
   .funding-table { grid-template-columns: 80px repeat(3,1fr) 1fr; font-size: 11px; }
