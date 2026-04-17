@@ -215,15 +215,15 @@ export default function MacroRegimeCard() {
       </div>
 
       {/* Body: Gauge left, Key Drivers right */}
-      <div style={{ display: 'flex', gap: 'var(--gap)', flex: 1, minHeight: 0 }}>
+      <div className="regime-body" style={{ flex: 1, minHeight: 0 }}>
 
         {/* Gauge */}
-        <div style={{ width: '42%', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div className="regime-gauge" style={{ alignItems: 'center', justifyContent: 'center' }}>
           <Gauge value={score ?? 50} label={label} size={170} pillColor={regime.color} />
         </div>
 
         {/* Key Drivers */}
-        <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 5 }}>
+        <div className="regime-drivers">
           <div style={{ fontSize: 'var(--fs-xs)', color: 'var(--muted3)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: 1, flexShrink: 0 }}>
             Key Drivers
           </div>

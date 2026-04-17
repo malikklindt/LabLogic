@@ -618,7 +618,7 @@ export default function MarketsPage() {
         </div>
 
         {/* Macro cards */}
-        <div style={{ display: 'flex', gap: 'clamp(8px, 0.6vw, 12px)', marginBottom: 'clamp(12px, 0.9vw, 18px)', flexWrap: 'wrap' }}>
+        <div className="markets-macro" style={{ display: 'flex', gap: 'clamp(8px, 0.6vw, 12px)', marginBottom: 'clamp(12px, 0.9vw, 18px)', flexWrap: 'wrap' }}>
           {loading && macro.length === 0
             ? [0,1,2,3].map(i => <div key={i} style={{ flex: 1, minWidth: 160, height: 120, background: 'var(--card)', borderRadius: 14, animation: 'mktPulse 1.4s ease infinite' }} />)
             : macro.map(a => <MacroCard key={a.symbol} asset={a} onSelect={setSelected} />)
@@ -627,7 +627,7 @@ export default function MarketsPage() {
 
         {/* Screener */}
         <div style={{ background: 'var(--card)', border: '1px solid #1a1a30', borderRadius: 14, overflow: 'hidden' }}>
-
+         <div className="mobile-scroll-x">
           {/* Table header */}
           <div style={{ display: 'grid', gridTemplateColumns: '36px 200px 1fr 90px 72px 72px 110px 100px 88px', alignItems: 'center', gap: 0, padding: '10px 16px', borderBottom: '1px solid #111128', background: 'var(--bg2)' }}>
             <div style={{ fontSize: 10, color: 'var(--muted4)', textAlign: 'right', paddingRight: 12 }}>#</div>
@@ -647,6 +647,7 @@ export default function MarketsPage() {
             {!loading && sorted.length === 0 && <div style={{ padding: '40px 0', textAlign: 'center', color: 'var(--muted5)', fontSize: 13 }}>Could not fetch market data. CoinGecko may be rate-limiting — retry in 60s.</div>}
             {!loading && sorted.map((coin, i) => <CoinRow key={coin.id} coin={coin} index={i} onSelect={setSelected} />)}
           </div>
+         </div>
         </div>
 
         <div style={{ marginTop: 12, fontSize: 10, color: 'var(--muted4)', textAlign: 'right' }}>

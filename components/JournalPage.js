@@ -1533,7 +1533,7 @@ export default function JournalPage() {
 
       {/* Two-column layout */}
       {!loading && trades.length > 0 && view !== 'plans' && (
-        <div style={{ display: 'grid', gridTemplateColumns: `1fr clamp(220px, 20vw, 310px)`, gap: 'var(--gap)', alignItems: 'start' }}>
+        <div className="journal-layout" style={{ display: 'grid', gap: 'var(--gap)', alignItems: 'start' }}>
 
           {/* LEFT: Calendar / List */}
           <div style={{ minWidth: 0 }}>

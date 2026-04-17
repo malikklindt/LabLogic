@@ -680,7 +680,7 @@ export default function WhaleWatchPage() {
         </div>
 
         {/* ── Stats row ────────────────────────────────────────────────────── */}
-        <div style={{ display: 'flex', gap: 'clamp(8px, 0.6vw, 12px)', marginBottom: 'clamp(12px, 0.9vw, 20px)' }}>
+        <div className="whale-stats" style={{ display: 'flex', gap: 'clamp(8px, 0.6vw, 12px)', marginBottom: 'clamp(12px, 0.9vw, 20px)' }}>
           <StatCard
             label="1H Volume Moved"
             value={stats ? formatUSD(stats.total_usd) : '—'}
@@ -822,7 +822,7 @@ export default function WhaleWatchPage() {
         </div>
 
         {/* ── Bottom row ────────────────────────────────────────────────────── */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'clamp(8px, 0.6vw, 12px)' }}>
+        <div className="whale-bottom" style={{ display: 'grid', gap: 'clamp(8px, 0.6vw, 12px)' }}>
 
           {/* Liq summary */}
           <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 14, padding: 'clamp(14px, 1vw, 20px)' }}>

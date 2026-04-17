@@ -384,7 +384,7 @@ export default function FundingPage() {
         </div>
       </div>
 
-      <div style={{ padding:'18px 28px 0' }}>
+      <div className="mobile-scroll-x" style={{ padding:'18px 28px 0' }}>
 
         {/* ── Sentiment row (compact) ── */}
         <div style={{ background:'var(--card)', border:`1px solid ${sentiment.color}28`, borderRadius:14, padding:'12px 18px', marginBottom:16 }}>
@@ -434,10 +434,10 @@ export default function FundingPage() {
         </div>
 
         {/* ── Two-column layout: Table + Liquidation Zones ── */}
-        <div style={{ display:'grid', gridTemplateColumns:'1.15fr 1fr', gap:16, alignItems:'start' }}>
+        <div className="funding-two-col">
 
         {/* ── Left: Funding Table ── */}
-        <div>
+        <div className="mobile-scroll-x">
         {loading && (
           <div style={{ textAlign:'center', padding:'40px 0', color:'var(--muted3)', fontSize:13 }}>
             Fetching rates from OKX, MEXC, BitMEX…
@@ -451,7 +451,7 @@ export default function FundingPage() {
         {!loading && data && (
           <div style={{ background:'var(--card)', border:'1px solid var(--border)', borderRadius:14, overflow:'hidden' }}>
             {/* Header */}
-            <div style={{ display:'grid', gridTemplateColumns:'110px repeat(3,1fr) 1fr', padding:'8px 14px', borderBottom:'1px solid var(--border)', background:'var(--bg2)' }}>
+            <div className="funding-table" style={{ padding:'8px 14px', borderBottom:'1px solid var(--border)', background:'var(--bg2)' }}>
               <div style={{ fontSize:9, fontWeight:700, color:'var(--muted3)', textTransform:'uppercase', letterSpacing:'0.6px' }}>Asset</div>
               {EXCHANGES.map(ex => (
                 <div key={ex.key} style={{ fontSize:9, fontWeight:700, color:'var(--muted3)', textTransform:'uppercase', letterSpacing:'0.6px', textAlign:'center' }}>{ex.label}</div>
@@ -464,7 +464,8 @@ export default function FundingPage() {
               <div
                 key={coin.symbol}
                 onClick={() => setSelected(coin)}
-                style={{ display:'grid', gridTemplateColumns:'110px repeat(3,1fr) 1fr', padding:'8px 14px', borderBottom: i < data.coins.length - 1 ? '1px solid var(--border3)' : 'none', cursor:'pointer', transition:'background 0.12s', background:'transparent' }}
+                className="funding-table"
+                style={{ padding:'8px 14px', borderBottom: i < data.coins.length - 1 ? '1px solid var(--border3)' : 'none', cursor:'pointer', transition:'background 0.12s', background:'transparent' }}
                 onMouseEnter={e => e.currentTarget.style.background = 'var(--card3)'}
                 onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
               >

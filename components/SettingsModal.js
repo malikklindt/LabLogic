@@ -232,6 +232,7 @@ export default function SettingsModal() {
         }}
       >
         <div
+          className="sm-card"
           onClick={e => e.stopPropagation()}
           style={{
             width: '90vw', maxWidth: 820,
