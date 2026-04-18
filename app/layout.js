@@ -2,6 +2,7 @@ import './globals.css';
 import RightSidebar from '@/components/RightSidebar';
 import WhaleNotifier from '@/components/WhaleNotifier';
 import SettingsModal from '@/components/SettingsModal';
+import BriefingModal from '@/components/BriefingModal';
 
 export const metadata = {
   title: 'LabLogic — Trading Suite',
@@ -26,6 +27,7 @@ export default function RootLayout({ children }) {
         <RightSidebar />
         <WhaleNotifier />
         <SettingsModal />
+        <BriefingModal />
       </body>
     </html>
   );
