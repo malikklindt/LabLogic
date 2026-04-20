@@ -148,7 +148,10 @@ export async function GET(request) {
     if (!prices || !prices.length) throw new Error('No price data returned');
 
     const payload = { prices };
-    cache[cacheKey] = { data: payload, at: Date.now() };
+    // Only cache successful responses — never cache empty/failed results
+    if (prices && prices.length > 0) {
+      cache[cacheKey] = { data: payload, at: Date.now() };
+    }
     return Response.json(payload);
   } catch (e) {
     console.error(`[Chart] ${coin} fetch failed:`, e.message);
