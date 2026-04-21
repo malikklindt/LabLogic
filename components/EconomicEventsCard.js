@@ -235,7 +235,21 @@ export default function EconomicEventsCard() {
       const tmrw = new Date();
       tmrw.setUTCDate(tmrw.getUTCDate() + 1);
       const tmrwStr = tmrw.toISOString().split('T')[0];
-      // Try this week client-side first, then next week
+
+      // Primary: server-side /api/events?range=week (uses grouped map)
+      try {
+        const res = await fetch('/api/events?range=week', { cache: 'no-store' });
+        if (res.ok) {
+          const data = await res.json();
+          const arr = data?.grouped?.[tmrwStr] ?? [];
+          if (arr.length > 0) {
+            setTomorrowEvents(arr.map(ev => ev.currency ? ev : enrichEvent(ev)).sort((a, b) => a.time.localeCompare(b.time)));
+            return;
+          }
+        }
+      } catch (_) {}
+
+      // Fallback: client-side corsproxy (if ever working again)
       let raw = [];
       try { raw = await fetchFFClientSide(FF_THIS_WEEK); } catch (_) {}
       let filtered = raw.filter(ev => new Date(ev.date).toISOString().split('T')[0] === tmrwStr);
@@ -255,7 +269,25 @@ export default function EconomicEventsCard() {
     setLoadingWeek(true);
     setWeekEvents(null);
     try {
-      // Fetch both weeks client-side via corsproxy to avoid server-side rate limits
+      // Primary path: server-side /api/events (Vercel fetches ForexFactory directly)
+      const res = await fetch('/api/events?range=week', { cache: 'no-store' });
+      if (res.ok) {
+        const data = await res.json();
+        const grouped = data?.grouped ?? {};
+        if (Object.keys(grouped).length > 0) {
+          // Events from server already have { time, flag, country, name, imp, actual, estimate, prev, currency, type }
+          // We just need to ensure each event is enriched consistently
+          const normalized = {};
+          Object.entries(grouped).forEach(([date, arr]) => {
+            normalized[date] = arr.map(ev => ev.currency ? ev : enrichEvent(ev));
+            normalized[date].sort((a, b) => a.time.localeCompare(b.time));
+          });
+          setWeekEvents(normalized);
+          return;
+        }
+      }
+
+      // Fallback: client-side via corsproxy (if it ever starts working again)
       const [thisWeekRaw, nextWeekRaw] = await Promise.allSettled([
         fetchFFClientSide(FF_THIS_WEEK),
         fetchFFClientSide(FF_NEXT_WEEK),
