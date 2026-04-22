@@ -19,6 +19,12 @@ const COINS = [
   { symbol: 'LINK', okx: 'LINK-USDT-SWAP', mexc: 'LINK_USDT', bitmex: 'LINKUSDT' },
   { symbol: 'ADA',  okx: 'ADA-USDT-SWAP',  mexc: 'ADA_USDT',  bitmex: 'ADAUSDT'  },
   { symbol: 'SUI',  okx: 'SUI-USDT-SWAP',  mexc: 'SUI_USDT',  bitmex: 'SUIUSDT'  },
+  { symbol: 'TRX',  okx: 'TRX-USDT-SWAP',  mexc: 'TRX_USDT',  bitmex: 'TRXUSDT'  },
+  { symbol: 'TON',  okx: 'TON-USDT-SWAP',  mexc: 'TON_USDT',  bitmex: 'TONUSDT'  },
+  { symbol: 'LTC',  okx: 'LTC-USDT-SWAP',  mexc: 'LTC_USDT',  bitmex: 'LTCUSDT'  },
+  { symbol: 'DOT',  okx: 'DOT-USDT-SWAP',  mexc: 'DOT_USDT',  bitmex: 'DOTUSDT'  },
+  { symbol: 'PEPE', okx: 'PEPE-USDT-SWAP', mexc: 'PEPE_USDT', bitmex: 'PEPEUSDT' },
+  { symbol: 'SHIB', okx: 'SHIB-USDT-SWAP', mexc: 'SHIB_USDT', bitmex: 'SHIBUSDT' },
 ];
 
 // Fresh timeout signal per call — module-level AbortSignal.timeout() starts

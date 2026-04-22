@@ -110,7 +110,8 @@ function HistoryModal({ coin, onClose }) {
   const BINANCE_SYMBOL = {
     BTC: 'BTCUSDT', ETH: 'ETHUSDT', SOL: 'SOLUSDT', BNB: 'BNBUSDT',
     XRP: 'XRPUSDT', DOGE: 'DOGEUSDT', AVAX: 'AVAXUSDT', LINK: 'LINKUSDT',
-    ADA: 'ADAUSDT', SUI: 'SUIUSDT',
+    ADA: 'ADAUSDT', SUI: 'SUIUSDT', TRX: 'TRXUSDT', TON: 'TONUSDT',
+    LTC: 'LTCUSDT', DOT: 'DOTUSDT', PEPE: 'PEPEUSDT', SHIB: 'SHIBUSDT',
   };
 
   useEffect(() => {
