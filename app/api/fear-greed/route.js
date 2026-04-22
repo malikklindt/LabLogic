@@ -1,6 +1,7 @@
-// Fear & Greed Index — CoinMarketCap only
-// /v3/fear-and-greed/latest    → current value   (cached 1h,  ~24 credits/day)
-// /v3/fear-and-greed/historical → full history   (cached 24h, 1 credit/day)
+// Fear & Greed Index
+// Primary:  CoinMarketCap /v3/fear-and-greed/latest + /historical (1h + 24h cache)
+// Fallback: alternative.me /fng/ (free, no auth, up to ~1y history) — covers CMC
+//           outages / missing API key so the card never goes dark on cold boot.
 
 const cacheLatest = { data: null, at: 0 };
 const cacheHist   = { data: null, at: 0 };
@@ -65,10 +66,48 @@ async function fetchHistory(key) {
   return allEntries;
 }
 
+// alternative.me — no auth, reliable global endpoint used as CMC fallback.
+// Returns newest-first entries with { value, value_classification, timestamp(seconds) }.
+async function fetchAlternativePayload() {
+  const res = await fetch('https://api.alternative.me/fng/?limit=365', {
+    cache: 'no-store', signal: AbortSignal.timeout(8000),
+  });
+  if (!res.ok) throw new Error(`alternative.me HTTP ${res.status}`);
+  const json = await res.json();
+  const raw  = json?.data;
+  if (!Array.isArray(raw) || raw.length === 0) throw new Error('alternative.me: no data');
+
+  const normalize = (e) => ({
+    value: Math.round(+e.value),
+    label: e.value_classification ?? fngLabel(Math.round(+e.value)),
+    ts:    +e.timestamp * 1000,
+  });
+
+  const pick = (i) => raw[i] ? normalize(raw[i]) : null;
+  const year = raw.slice(0, 365).map(normalize);
+  const maxVal = Math.max(...year.map(d => d.value));
+  const minVal = Math.min(...year.map(d => d.value));
+  const history = raw.slice().reverse().map(normalize);
+
+  return {
+    current:   normalize(raw[0]),
+    yesterday: pick(1),
+    lastWeek:  pick(7),
+    lastMonth: pick(30),
+    yearlyHigh: year.find(d => d.value === maxVal),
+    yearlyLow:  year.find(d => d.value === minVal),
+    history,
+    source: 'alternative.me',
+  };
+}
+
 export async function GET() {
   try {
     const key = process.env.CMC_API_KEY;
-    if (!key) return Response.json({ error: 'CMC_API_KEY not set' }, { status: 500 });
+    if (!key) {
+      // No CMC key — go straight to the public alternative.me feed.
+      return Response.json(await fetchAlternativePayload());
+    }
 
     const [latest, histRaw] = await Promise.all([
       fetchLatest(key),
@@ -132,6 +171,12 @@ export async function GET() {
         history,
       });
     }
-    return Response.json({ error: e.message }, { status: 500 });
+    // No CMC cache available — fall back to alternative.me so the page still renders.
+    try {
+      return Response.json(await fetchAlternativePayload());
+    } catch (altErr) {
+      console.error('[FNG] alternative.me fallback failed:', altErr.message);
+      return Response.json({ error: e.message }, { status: 500 });
+    }
   }
 }

@@ -1,3 +1,10 @@
+// Earnings data doesn't change intra-day — cache aggressively.
+// FMP demo key is ~25 calls/day, NASDAQ unauth is also limited → caching is critical.
+let cache    = null;
+let cacheAt  = 0;
+let cacheDay = null;
+const TTL    = 10 * 60_000; // 10 min
+
 function todayStr() {
   return new Date().toISOString().split('T')[0];
 }
@@ -5,11 +12,16 @@ function todayStr() {
 export async function GET() {
   const today = todayStr();
 
+  // Fresh cache — serve immediately
+  if (cache && cacheDay === today && Date.now() - cacheAt < TTL) {
+    return Response.json(cache);
+  }
+
   // ── Primary: Financial Modeling Prep (free demo key) ─────────────────────
   try {
     const res = await fetch(
       `https://financialmodelingprep.com/api/v3/earning_calendar?from=${today}&to=${today}&apikey=demo`,
-      { headers: { 'User-Agent': 'Mozilla/5.0' }, cache: 'no-store' }
+      { headers: { 'User-Agent': 'Mozilla/5.0' }, cache: 'no-store', signal: AbortSignal.timeout(7000) }
     );
     if (res.ok) {
       const data = await res.json();
@@ -28,7 +40,10 @@ export async function GET() {
             : null,
           imp:     'Medium',
         }));
-        return Response.json({ items, source: 'fmp' });
+        cache = { items, source: 'fmp' };
+        cacheAt = Date.now();
+        cacheDay = today;
+        return Response.json(cache);
       }
     }
   } catch (e) {
@@ -45,6 +60,7 @@ export async function GET() {
           'Accept': 'application/json, text/plain, */*',
         },
         cache: 'no-store',
+        signal: AbortSignal.timeout(7000),
       }
     );
     if (res.ok) {
@@ -62,11 +78,20 @@ export async function GET() {
           rev_est: null,
           imp:     'Medium',
         }));
-        return Response.json({ items, source: 'nasdaq' });
+        cache = { items, source: 'nasdaq' };
+        cacheAt = Date.now();
+        cacheDay = today;
+        return Response.json(cache);
       }
     }
   } catch (e) {
     console.error('[Earnings NASDAQ]', e.message);
+  }
+
+  // Both providers dead — serve stale cache (even stale/day-old data beats an
+  // empty list) before giving up.
+  if (cache?.items?.length) {
+    return Response.json({ ...cache, stale: true, stalenessMs: Date.now() - cacheAt });
   }
 
   return Response.json({ items: [], source: 'unavailable', note: 'Earnings data unavailable today' });

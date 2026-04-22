@@ -1,3 +1,10 @@
+// In-memory cache — volatility is slow-moving + providers rate-limit,
+// so a 5-min TTL dramatically reduces Deribit/CoinGecko calls and keeps
+// the card alive if a provider briefly dies.
+let cache = null;
+let cacheAt = 0;
+const TTL = 5 * 60_000;
+
 function calcRV(prices) {
   if (prices.length < 2) return 0;
   const logs = [];
@@ -25,6 +32,11 @@ function ivSpark(dvolHistorical, ivLive, days) {
 }
 
 export async function GET() {
+  // Serve fresh cache immediately
+  if (cache && Date.now() - cacheAt < TTL) {
+    return Response.json(cache);
+  }
+
   let ivLive = null;
   let dvolHistorical = [];
 
@@ -98,5 +110,13 @@ export async function GET() {
     '3M': { iv: ivSpark(dvolHistorical, ivLive, 90), rv: rvSpark(btcPrices90.length > 0 ? btcPrices90 : btcPrices30) },
   };
 
-  return Response.json({ iv: ivLive, rv, volHistory });
+  // Everything dead? Serve last-known cache rather than zeros.
+  if (ivLive == null && rv == null && cache) {
+    return Response.json({ ...cache, stale: true, stalenessMs: Date.now() - cacheAt });
+  }
+
+  const payload = { iv: ivLive, rv, volHistory };
+  cache = payload;
+  cacheAt = Date.now();
+  return Response.json(payload);
 }

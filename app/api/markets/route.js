@@ -98,6 +98,12 @@ export async function GET() {
   const global = globalResult.status === 'fulfilled' ? globalResult.value : null;
   const macro  = macroResults.map(r  => r.status === 'fulfilled' ? r.value : null).filter(Boolean);
 
+  // CoinGecko dead? Serve last-known cache even if TTL expired rather than wiping
+  // the markets page to empty arrays.
+  if (coins.length === 0 && cache.data?.coins?.length) {
+    return Response.json({ ...cache.data, stale: true, stalenessMs: Date.now() - cache.ts });
+  }
+
   const data = { coins, global, macro, updatedAt: Date.now(), mock: coins.length === 0 };
   cache = { data, ts: Date.now() };
 
