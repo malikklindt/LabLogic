@@ -134,15 +134,25 @@ export async function GET(request) {
     } catch (_) { /* fall through to CoinGecko */ }
 
     // Fall back to CoinGecko if Binance blocked (Vercel US regions)
+    // Retry up to 3 times with backoff — CoinGecko free tier rate-limits bursts
     if (!prices || !prices.length) {
-      const res = await fetch(
-        `https://api.coingecko.com/api/v3/coins/${coin}/market_chart?vs_currency=usd&days=${days}&interval=daily`,
-        { cache: 'no-store', signal: AbortSignal.timeout(8000) }
-      );
-      if (!res.ok) throw new Error(`Both Binance and CoinGecko failed (CG: ${res.status})`);
-      const data = await res.json();
-      if (!Array.isArray(data?.prices)) throw new Error('CoinGecko: unexpected shape');
-      prices = data.prices; // already in [[ts, price], ...] format
+      const url = `https://api.coingecko.com/api/v3/coins/${coin}/market_chart?vs_currency=usd&days=${days}&interval=daily`;
+      let lastStatus = 0;
+      for (let attempt = 0; attempt < 3; attempt++) {
+        if (attempt > 0) await new Promise(r => setTimeout(r, 800 * attempt)); // 800ms, 1600ms
+        const res = await fetch(url, { cache: 'no-store', signal: AbortSignal.timeout(8000) });
+        lastStatus = res.status;
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data?.prices) && data.prices.length) {
+            prices = data.prices;
+            break;
+          }
+        } else if (res.status !== 429 && res.status !== 503) {
+          break; // non-retryable error
+        }
+      }
+      if (!prices || !prices.length) throw new Error(`CoinGecko failed after retries (status ${lastStatus})`);
     }
 
     if (!prices || !prices.length) throw new Error('No price data returned');
@@ -155,6 +165,11 @@ export async function GET(request) {
     return Response.json(payload);
   } catch (e) {
     console.error(`[Chart] ${coin} fetch failed:`, e.message);
+    // Serve any stale cache (even if past TTL) as a last resort
+    if (cache[cacheKey]) {
+      console.warn(`[Chart] Serving stale cache for ${cacheKey}`);
+      return Response.json(cache[cacheKey].data);
+    }
     if (cache[cacheKey]) return Response.json(cache[cacheKey].data);
     return Response.json({ error: e.message }, { status: 500 });
   }

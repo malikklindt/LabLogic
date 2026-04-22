@@ -1,5 +1,6 @@
 'use client';
 import { useState, useEffect } from 'react';
+import { loadTrades } from '@/lib/journalStore';
 
 function pnlColor(v) { return v > 0 ? 'var(--green)' : v < 0 ? 'var(--red)' : 'var(--muted3)'; }
 function fmtPnl(v) {
@@ -22,10 +23,13 @@ export default function TradeSummaryCard() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch('/api/journal')
-      .then(r => r.json())
-      .then(data => { setTrades(Array.isArray(data) ? data : []); setLoading(false); })
-      .catch(() => { setTrades([]); setLoading(false); });
+    // Trades now live in localStorage (no /api/journal endpoint)
+    try {
+      setTrades(loadTrades());
+    } catch {
+      setTrades([]);
+    }
+    setLoading(false);
   }, []);
 
   if (loading) {

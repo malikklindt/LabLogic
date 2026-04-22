@@ -104,14 +104,19 @@ async function fetchBTC(days = 200) {
     }
   } catch {}
 
-  // CoinGecko fallback (capped at 365 days on free tier)
+  // CoinGecko fallback (capped at 365 days on free tier) — retry on rate limit
   const cgDays = Math.min(days, 365);
-  const res = await fetch(
-    `https://api.coingecko.com/api/v3/coins/bitcoin/market_chart?vs_currency=usd&days=${cgDays}&interval=daily`,
-    { cache: 'no-store', signal: AbortSignal.timeout(8000) }
-  );
-  if (!res.ok) throw new Error(`CoinGecko BTC HTTP ${res.status}`);
-  const data = await res.json();
+  const url = `https://api.coingecko.com/api/v3/coins/bitcoin/market_chart?vs_currency=usd&days=${cgDays}&interval=daily`;
+  let data = null;
+  let lastStatus = 0;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    if (attempt > 0) await new Promise(r => setTimeout(r, 800 * attempt));
+    const res = await fetch(url, { cache: 'no-store', signal: AbortSignal.timeout(8000) });
+    lastStatus = res.status;
+    if (res.ok) { data = await res.json(); break; }
+    if (res.status !== 429 && res.status !== 503) break;
+  }
+  if (!data) throw new Error(`CoinGecko BTC HTTP ${lastStatus}`);
   if (!Array.isArray(data?.prices) || data.prices.length < 10) throw new Error(`CoinGecko BTC: insufficient rows`);
 
   const byDate = {};
