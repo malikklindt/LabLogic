@@ -1,7 +1,12 @@
 // Prices API
-// Binance ticker/24hr (per-symbol) — price + 24h change
-// Binance klines                   — 7d change
-// CoinMarketCap /global-metrics    — BTC dominance (free key, 5-min TTL → ~288 calls/day < 333 limit)
+// Provider fallback chain (first success wins, per coin):
+//   1. Binance ticker/24hr   — fastest when available; blocked on Vercel US, some VPN regions
+//   2. CoinGecko simple/price — works globally but rate-limits free tier (429)
+//   3. Coinbase Exchange stats — unauthenticated, global, rock-solid
+//   4. Kraken public Ticker   — unauthenticated, global, rock-solid
+// 7d change uses Binance klines → CoinGecko market_chart → Coinbase candles chain.
+// BTC dominance uses CoinMarketCap /global-metrics (5-min TTL → ~288 calls/day < 333 limit).
+// If ALL providers fail, the route serves last-known cache with { stale: true } rather than 500.
 import { recordDom } from '@/lib/domHistory';
 
 let cached    = null;
@@ -66,6 +71,89 @@ async function fetchGecko7dChange(id) {
   } catch { return null; }
 }
 
+// Coinbase Exchange — unauthenticated, globally available, reliable
+async function fetchCoinbaseStats(productId) {
+  try {
+    const res = await fetch(
+      `https://api.exchange.coinbase.com/products/${productId}/stats`,
+      { cache: 'no-store', signal: AbortSignal.timeout(6000) }
+    );
+    if (!res.ok) return null;
+    const d = await res.json();
+    const last = parseFloat(d.last);
+    const open = parseFloat(d.open);
+    if (!isFinite(last) || !isFinite(open) || open === 0) return null;
+    return {
+      lastPrice: String(last),
+      priceChangePercent: ((last - open) / open * 100).toFixed(2),
+    };
+  } catch { return null; }
+}
+
+async function fetchCoinbasePrices() {
+  const [btc, eth, sol] = await Promise.all([
+    fetchCoinbaseStats('BTC-USD'),
+    fetchCoinbaseStats('ETH-USD'),
+    fetchCoinbaseStats('SOL-USD'),
+  ]);
+  if (!btc) return null;
+  return { BTCUSDT: btc, ETHUSDT: eth, SOLUSDT: sol };
+}
+
+// Coinbase candles — 7d change (daily granularity, 8 days to ensure ≥ 2 points)
+async function fetchCoinbase7dChange(productId) {
+  try {
+    const end   = Math.floor(Date.now() / 1000);
+    const start = end - 8 * 86400;
+    const res = await fetch(
+      `https://api.exchange.coinbase.com/products/${productId}/candles?granularity=86400&start=${start}&end=${end}`,
+      { cache: 'no-store', signal: AbortSignal.timeout(6000) }
+    );
+    if (!res.ok) return null;
+    const d = await res.json();
+    if (!Array.isArray(d) || d.length < 2) return null;
+    // Candle: [time, low, high, open, close, volume] — API returns newest first
+    const sorted = [...d].sort((a, b) => a[0] - b[0]);
+    const open7d = sorted[0][3];
+    const close  = sorted[sorted.length - 1][4];
+    if (!open7d || !close) return null;
+    return parseFloat(((close - open7d) / open7d * 100).toFixed(2));
+  } catch { return null; }
+}
+
+// Kraken — unauthenticated, globally available, reliable
+async function fetchKrakenPrices() {
+  try {
+    const res = await fetch(
+      'https://api.kraken.com/0/public/Ticker?pair=XBTUSD,ETHUSD,SOLUSD',
+      { cache: 'no-store', signal: AbortSignal.timeout(6000) }
+    );
+    if (!res.ok) return null;
+    const d = await res.json();
+    if (d?.error?.length) return null;
+    const r = d?.result;
+    if (!r) return null;
+    const build = (key) => {
+      const t = r[key];
+      if (!t) return null;
+      const last = parseFloat(t.c?.[0]);
+      const open = parseFloat(t.o);
+      if (!isFinite(last) || !isFinite(open) || open === 0) return null;
+      return {
+        lastPrice: String(last),
+        priceChangePercent: ((last - open) / open * 100).toFixed(2),
+      };
+    };
+    const btc = build('XXBTZUSD');
+    if (!btc) return null;
+    return {
+      BTCUSDT: btc,
+      ETHUSDT: build('XETHZUSD'),
+      SOLUSDT: build('SOLUSD'),
+    };
+  } catch { return null; }
+}
+
 async function fetchBinance7dChange(symbol) {
   const res = await fetch(
     `https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=1d&limit=8`,
@@ -127,14 +215,26 @@ export async function GET() {
       fetchBtcDominance(),
     ]);
 
-    // If Binance is blocked (e.g. Vercel US region), fall back to CoinGecko
+    // Provider fallback chain: Binance → CoinGecko → Coinbase → Kraken
     if (!btcT) {
       const gecko = await fetchGeckoPrices();
       if (gecko) {
         btcT = gecko.BTCUSDT; ethT = gecko.ETHUSDT; solT = gecko.SOLUSDT;
       }
     }
-    // 7d change: if Binance klines blocked, compute from CoinGecko market_chart
+    if (!btcT) {
+      const cb = await fetchCoinbasePrices();
+      if (cb) {
+        btcT = cb.BTCUSDT; ethT = cb.ETHUSDT; solT = cb.SOLUSDT;
+      }
+    }
+    if (!btcT) {
+      const kr = await fetchKrakenPrices();
+      if (kr) {
+        btcT = kr.BTCUSDT; ethT = kr.ETHUSDT; solT = kr.SOLUSDT;
+      }
+    }
+    // 7d change: Binance klines → CoinGecko market_chart → Coinbase candles
     if (btc7d == null || eth7d == null || sol7d == null) {
       const [b7, e7, s7] = await Promise.all([
         btc7d == null ? fetchGecko7dChange('bitcoin')  : Promise.resolve(btc7d),
@@ -143,8 +243,16 @@ export async function GET() {
       ]);
       btc7d = b7; eth7d = e7; sol7d = s7;
     }
+    if (btc7d == null || eth7d == null || sol7d == null) {
+      const [b7, e7, s7] = await Promise.all([
+        btc7d == null ? fetchCoinbase7dChange('BTC-USD') : Promise.resolve(btc7d),
+        eth7d == null ? fetchCoinbase7dChange('ETH-USD') : Promise.resolve(eth7d),
+        sol7d == null ? fetchCoinbase7dChange('SOL-USD') : Promise.resolve(sol7d),
+      ]);
+      btc7d = b7; eth7d = e7; sol7d = s7;
+    }
 
-    if (!btcT) throw new Error('BTC ticker unavailable (both Binance and CoinGecko failed)');
+    if (!btcT) throw new Error('BTC ticker unavailable (all providers failed)');
 
     const payload = {
       bitcoin: {
@@ -173,7 +281,10 @@ export async function GET() {
     return Response.json(payload);
   } catch (e) {
     console.error('[Prices] fetch failed:', e.message);
-    if (cached) return Response.json(cached);
-    return Response.json({ error: e.message }, { status: 500 });
+    // Serve last-known cache with staleness indicator — better than a 500 to the UI.
+    if (cached) {
+      return Response.json({ ...cached, stale: true, stalenessMs: Date.now() - cachedAt });
+    }
+    return Response.json({ error: e.message }, { status: 503 });
   }
 }
