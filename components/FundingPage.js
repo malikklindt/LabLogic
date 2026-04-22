@@ -1,5 +1,6 @@
 'use client';
 import { useState, useEffect, useRef, useCallback } from 'react';
+import FundingIntelligence from './FundingIntelligence';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 const fmtRate = (r) => {
@@ -505,6 +506,8 @@ export default function FundingPage() {
         <LiquidationZones />
 
         </div>
+
+        <FundingIntelligence />
       </div>
 
       {selected && <HistoryModal coin={selected} onClose={() => setSelected(null)} />}

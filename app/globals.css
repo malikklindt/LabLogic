@@ -1170,6 +1170,8 @@ button.ai-badge:active { transform: scale(0.97) !important; }
   /* Funding page */
   .funding-two-col { grid-template-columns: 1fr !important; }
   .funding-table { grid-template-columns: 80px repeat(3,1fr) 1fr; font-size: 11px; }
+  .fi-grid { grid-template-columns: 1fr !important; }
+  .fi-grid > div:first-child { border-right: none !important; border-bottom: 1px solid var(--border) !important; }
 
   /* Whale Watch */
   .whale-stats { grid-template-columns: 1fr !important; }
