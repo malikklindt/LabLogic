@@ -24,7 +24,6 @@ const COINS = [
   { symbol: 'LTC',  okx: 'LTC-USDT-SWAP',  mexc: 'LTC_USDT',  bitmex: 'LTCUSDT'  },
   { symbol: 'DOT',  okx: 'DOT-USDT-SWAP',  mexc: 'DOT_USDT',  bitmex: 'DOTUSDT'  },
   { symbol: 'PEPE', okx: 'PEPE-USDT-SWAP', mexc: 'PEPE_USDT', bitmex: 'PEPEUSDT' },
-  { symbol: 'SHIB', okx: 'SHIB-USDT-SWAP', mexc: 'SHIB_USDT', bitmex: 'SHIBUSDT' },
 ];
 
 // Fresh timeout signal per call — module-level AbortSignal.timeout() starts

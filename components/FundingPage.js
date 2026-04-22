@@ -111,7 +111,7 @@ function HistoryModal({ coin, onClose }) {
     BTC: 'BTCUSDT', ETH: 'ETHUSDT', SOL: 'SOLUSDT', BNB: 'BNBUSDT',
     XRP: 'XRPUSDT', DOGE: 'DOGEUSDT', AVAX: 'AVAXUSDT', LINK: 'LINKUSDT',
     ADA: 'ADAUSDT', SUI: 'SUIUSDT', TRX: 'TRXUSDT', TON: 'TONUSDT',
-    LTC: 'LTCUSDT', DOT: 'DOTUSDT', PEPE: 'PEPEUSDT', SHIB: 'SHIBUSDT',
+    LTC: 'LTCUSDT', DOT: 'DOTUSDT', PEPE: 'PEPEUSDT',
   };
 
   useEffect(() => {
